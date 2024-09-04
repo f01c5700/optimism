@@ -11,7 +11,6 @@ contract WETH_Test is CommonTest {
     /// @dev Tests that the name function returns the correct value.
     function testFuzz_name_succeeds(string memory _gasPayingTokenName) external {
         vm.mockCall(address(l1Block), abi.encodeWithSignature("gasPayingTokenName()"), abi.encode(_gasPayingTokenName));
-
         assertEq(string.concat("Wrapped ", _gasPayingTokenName), weth.name());
     }
 

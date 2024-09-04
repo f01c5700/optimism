@@ -565,7 +565,16 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
-    parallelism: 4
+    parameters:
+      parallelism:
+        type: integer
+        default: 4
+      test_command:
+        type: string
+        default: |
+          TESTS=$(forge test --list | grep -E '^\s{4}' | awk '{print $1}' | circleci tests split --split-by=timings | paste -sd "|" -)
+          forge test --match-test "$TESTS"
+    parallelism: << parameters.parallelism >>
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -594,9 +603,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: |
-            TESTS=$(forge test --list | grep -E '^\s{4}' | awk '{print $1}' | circleci tests split --split-by=timings | paste -sd "|" -)
-            forge test --match-test "$TESTS"
+          command: << parameters.test_command >>
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -1551,6 +1558,13 @@ workflows:
           name: contracts-bedrock-build-skip-tests
           build_command: forge build --skip test
       - contracts-bedrock-tests:
+          requires:
+            - contracts-bedrock-build
+            - go-mod-download
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-heavy-fuzz-modified-tests
+          parallelism: 1
+          test_command: just test-heavy-fuzz-modified-tests
           requires:
             - contracts-bedrock-build
             - go-mod-download
