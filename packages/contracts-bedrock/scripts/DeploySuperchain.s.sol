@@ -57,64 +57,62 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 // Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
 // scripts from the existing ones that use the "Config" and "Artifacts" terminology.
 contract DeploySuperchainInput is CommonBase {
-    // The input struct contains all the input data required for the deployment.
-    // The fields must be in alphabetical order for vm.parseToml to work.
-    struct Input {
-        bool paused;
-        ProtocolVersion recommendedProtocolVersion;
-        ProtocolVersion requiredProtocolVersion;
-        Roles roles;
+    // All inputs are set in storage individually. We put any roles first, followed by the remaining
+    // inputs. Inputs are internal and prefixed with an underscore, because we will expose a getter
+    // method that returns the input value. We use a getter method to allow us to make assertions on
+    // the input to ensure it's valid before returning it. We also intentionally do not use a struct
+    // to hold all inputs, because as features are developed the set of inputs will change, and
+    // modifying structs in Solidity is not very simple.
+
+    // Role inputs.
+    address internal _guardian;
+    address internal _protocolVersionsOwner;
+    address internal _proxyAdminOwner;
+
+    // Other inputs.
+    bool internal _paused;
+    ProtocolVersion internal _recommendedProtocolVersion;
+    ProtocolVersion internal _requiredProtocolVersion;
+
+    // These `set` methods let each input be set individually. The selector of an input's getter method
+    // is used to determine which field to set.
+    function set(bytes4 _sel, address _address) public {
+        require(_address != address(0), "DeploySuperchainInput: cannot set null address");
+        if (_sel == this.guardian.selector) _guardian = _address;
+        else if (_sel == this.protocolVersionsOwner.selector) _protocolVersionsOwner = _address;
+        else if (_sel == this.proxyAdminOwner.selector) _proxyAdminOwner = _address;
+        else revert("DeploySuperchainInput: unknown selector");
     }
 
-    struct Roles {
-        address guardian;
-        address protocolVersionsOwner;
-        address proxyAdminOwner;
+    function set(bytes4 _sel, bool _value) public {
+        if (_sel == this.paused.selector) _paused = _value;
+        else revert("DeploySuperchainInput: unknown selector");
     }
 
-    // This flag tells us if all inputs have been set. An `input()` getter method that returns all
-    // inputs reverts if this flag is false. This ensures the deploy script cannot proceed until all
-    // inputs are validated and set.
-    bool public inputSet = false;
-
-    // The full input struct is kept in storage. It is not exposed because the return type would be
-    // a tuple, and it's more convenient for the return type to be the struct itself. Therefore the
-    // struct is exposed via the `input()` getter method below.
-    Input internal inputs;
+    function set(bytes4 _sel, ProtocolVersion _value) public {
+        require(ProtocolVersion.unwrap(_value) != 0, "DeploySuperchainInput: cannot set null protocol version");
+        if (_sel == this.recommendedProtocolVersion.selector) _recommendedProtocolVersion = _value;
+        else if (_sel == this.requiredProtocolVersion.selector) _requiredProtocolVersion = _value;
+        else revert("DeploySuperchainInput: unknown selector");
+    }
 
     // Load the input from a TOML file.
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
-        bytes memory data = vm.parseToml(toml);
-        Input memory parsedInput = abi.decode(data, (Input));
-        loadInput(parsedInput);
-    }
 
-    // Load the input from a struct.
-    function loadInput(Input memory _input) public {
-        // As a defensive measure, we only allow inputs to be set once.
-        require(!inputSet, "DeploySuperchainInput: input already set");
+        // Parse and set role inputs
+        _guardian = vm.parseTomlAddress(toml, "guardian");
+        _protocolVersionsOwner = vm.parseTomlAddress(toml, "protocolVersionsOwner");
+        _proxyAdminOwner = vm.parseTomlAddress(toml, "proxyAdminOwner");
 
-        // All assertions on inputs happen here. You cannot set any inputs in Solidity unless
-        // they're all valid. For Go testing, the input and outputs are set individually by
-        // treating the input and output contracts as precompiles and intercepting calls to them.
-        require(_input.roles.proxyAdminOwner != address(0), "DeploySuperchainInput: null proxyAdminOwner");
-        require(_input.roles.protocolVersionsOwner != address(0), "DeploySuperchainInput: null protocolVersionsOwner");
-        require(_input.roles.guardian != address(0), "DeploySuperchainInput: null guardian");
+        // Parse and set other inputs
+        _paused = vm.parseTomlBool(toml, "paused");
 
-        // We now set all values in storage.
-        inputSet = true;
-        inputs = _input;
-    }
+        uint256 recVersion = vm.parseTomlUint(toml, "recommendedProtocolVersion");
+        _recommendedProtocolVersion = ProtocolVersion.wrap(recVersion);
 
-    function assertInputSet() internal view {
-        require(inputSet, "DeploySuperchainInput: input not set");
-    }
-
-    // This exposes the full input data as a struct, and it reverts if the input has not been set.
-    function input() public view returns (Input memory) {
-        assertInputSet();
-        return inputs;
+        uint256 reqVersion = vm.parseTomlUint(toml, "requiredProtocolVersion");
+        _requiredProtocolVersion = ProtocolVersion.wrap(reqVersion);
     }
 
     // Each field of the input struct is exposed via it's own getter method. Using public storage
@@ -123,33 +121,38 @@ contract DeploySuperchainInput is CommonBase {
     // fields. With getter methods, we can be sure that the input is set before accessing any field.
 
     function proxyAdminOwner() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.proxyAdminOwner;
+        require(_proxyAdminOwner != address(0), "DeploySuperchainInput: proxyAdminOwner not set");
+        return _proxyAdminOwner;
     }
 
     function protocolVersionsOwner() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.protocolVersionsOwner;
+        require(_protocolVersionsOwner != address(0), "DeploySuperchainInput: protocolVersionsOwner not set");
+        return _protocolVersionsOwner;
     }
 
     function guardian() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.guardian;
+        require(_guardian != address(0), "DeploySuperchainInput: guardian not set");
+        return _guardian;
     }
 
     function paused() public view returns (bool) {
-        assertInputSet();
-        return inputs.paused;
+        return _paused;
     }
 
     function requiredProtocolVersion() public view returns (ProtocolVersion) {
-        assertInputSet();
-        return inputs.requiredProtocolVersion;
+        require(
+            ProtocolVersion.unwrap(_requiredProtocolVersion) != 0,
+            "DeploySuperchainInput: requiredProtocolVersion not set"
+        );
+        return _requiredProtocolVersion;
     }
 
     function recommendedProtocolVersion() public view returns (ProtocolVersion) {
-        assertInputSet();
-        return inputs.recommendedProtocolVersion;
+        require(
+            ProtocolVersion.unwrap(_recommendedProtocolVersion) != 0,
+            "DeploySuperchainInput: recommendedProtocolVersion not set"
+        );
+        return _recommendedProtocolVersion;
     }
 }
 
@@ -258,25 +261,16 @@ contract DeploySuperchain is Script {
         dso.writeOutputFile(_outfile);
     }
 
-    // This entrypoint is for use with Solidity tests, where the input and outputs are structs.
-    function run(DeploySuperchainInput.Input memory _input) public returns (DeploySuperchainOutput.Output memory) {
-        // Solidity without file IO, so etch the IO helper contracts.
-        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = etchIOContracts();
-
-        // Load the input struct into the input contract.
-        dsi.loadInput(_input);
-
-        // Run the deployment script and write outputs to the DeploySuperchainOutput contract.
-        run(dsi, dso);
-
-        // Return the output struct from the output contract.
-        return dso.output();
-    }
-
     // This entrypoint is useful for testing purposes, as it doesn't use any file I/O.
     function run(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
-        // Verify that the input contract has been set.
-        require(_dsi.inputSet(), "DeploySuperchain: input not set");
+        // Notice that we do not do any explicit verification here that inputs are set. This is because
+        // the verification happens elsewhere:
+        //   - Getter methods on the input contract provide sanity checks that values are set, when applicable.
+        //   - The individual methods below that we use to compose the deployment are responsible for handling
+        //     their own verification.
+        // This pattern ensures that other deploy scripts that might compose these contracts and
+        // methods in different ways are still protected from invalid inputs without need to implement
+        // additional verification logic.
 
         // Deploy the proxy admin, with the owner set to the deployer.
         deploySuperchainProxyAdmin(_dsi, _dso);
