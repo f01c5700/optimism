@@ -1,8 +1,9 @@
 package state
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestContractsVersion(t *testing.T) {

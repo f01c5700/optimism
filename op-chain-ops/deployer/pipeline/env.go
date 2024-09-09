@@ -23,6 +23,7 @@ func (e *Env) ReadIntent() (*state.Intent, error) {
 	if err := state.ReadTOMLFile(intentPath, &intent); err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
+
 	return &intent, nil
 }
 

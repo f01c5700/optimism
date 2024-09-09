@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
+const DefaultContractsBedrockRepo = "us-docker.pkg.dev/oplabs-tools-artifacts/images/contracts-bedrock"
+
 func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
 
@@ -17,6 +19,11 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 	}
 
 	lgr.Info("deploying superchain")
+
+	contractsRepo := intent.ContractsRepo
+	if contractsRepo == "" {
+		contractsRepo = DefaultContractsBedrockRepo
+	}
 
 	dso, err := opsm.DeploySuperchainDocker(
 		ctx,

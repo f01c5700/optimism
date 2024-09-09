@@ -2,13 +2,12 @@ package state
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var emptyAddress common.Address
-
-const ContractsBedrockRepo = "us-docker.pkg.dev/oplabs-tools-artifacts/images/contracts-bedrock"
 
 type Intent struct {
 	L1ChainID uint64 `json:"l1ChainID" toml:"l1ChainID"`
@@ -50,10 +49,6 @@ func (c Intent) Check() error {
 
 	if c.SuperchainRoles.Guardian == emptyAddress {
 		c.SuperchainRoles.Guardian = c.SuperchainRoles.ProxyAdminOwner
-	}
-
-	if c.ContractsRepo == "" {
-		c.ContractsRepo = ContractsBedrockRepo
 	}
 
 	if err := c.ContractsVersion.Check(); err != nil {

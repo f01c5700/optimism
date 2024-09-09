@@ -60,11 +60,9 @@ func DeploySuperchainDocker(ctx context.Context, opts DeploySuperchainOpts) (Dep
 		docker.WithCmd(
 			"forge",
 			"script",
-			"scripts/DeploySuperchain.s.sol",
+			"scripts/DeploySuperchain.s.sol:DeploySuperchain",
 			"--private-key",
 			opts.PrivateKey,
-			"--tc",
-			"DeploySuperchain",
 			"--rpc-url",
 			opts.L1RPCUrl,
 			"--broadcast",
