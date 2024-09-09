@@ -16,6 +16,12 @@ import (
 )
 
 var (
+	LoadELFVMTypeFlag = &cli.StringFlag{
+		Name:     "type",
+		Usage:    "VM type to create state for. Options are 'cannon' (default), 'cannon-mt'",
+		Value:    "cannon",
+		Required: false,
+	}
 	LoadELFPathFlag = &cli.PathFlag{
 		Name:      "path",
 		Usage:     "Path to 32-bit big-endian MIPS ELF file",
@@ -41,6 +47,23 @@ var (
 		Required: false,
 	}
 )
+
+type VMType string
+
+var (
+	cannonVMType VMType = "cannon"
+	mtVMType     VMType = "cannon-mt"
+)
+
+func vmTypeFromString(ctx *cli.Context) (VMType, error) {
+	if vmTypeStr := ctx.String(LoadELFVMTypeFlag.Name); vmTypeStr == string(cannonVMType) {
+		return cannonVMType, nil
+	} else if vmTypeStr == string(mtVMType) {
+		return mtVMType, nil
+	} else {
+		return "", fmt.Errorf("unknown VM type %q", vmTypeStr)
+	}
+}
 
 func LoadELF(ctx *cli.Context) error {
 	var createInitialState func(f *elf.File) (mipsevm.FPVMState, error)
@@ -105,7 +128,7 @@ var LoadELFCommand = &cli.Command{
 	Description: "Load ELF file into Cannon JSON state, optionally patch out functions",
 	Action:      LoadELF,
 	Flags: []cli.Flag{
-		VMTypeFlag,
+		LoadELFVMTypeFlag,
 		LoadELFPathFlag,
 		LoadELFPatchFlag,
 		LoadELFOutFlag,
